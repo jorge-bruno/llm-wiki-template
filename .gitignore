@@ -1,0 +1,25 @@
+# macOS
+.DS_Store
+
+# Obsidian — estado de UI por máquina (no versionar)
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/cache
+.obsidian/cache/
+
+# Papelera de Obsidian
+.trash/
+
+# Scratch de conversiones efímeras de markitdown (por las dudas)
+.scratch/
+
+# Logs y candados de las corridas de launchd (la carpeta se versiona vacía con .gitkeep)
+.claude/logs/*
+!.claude/logs/.gitkeep
+
+# venv del extractor de Granola (dependencia cryptography; no versionar)
+.claude/scripts/granola-venv/
+
+# Bytecode de Python (se genera al importar los scripts)
+__pycache__/
+*.pyc

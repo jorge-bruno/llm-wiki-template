@@ -1,0 +1,28 @@
+filters:
+  and:
+    - file.hasTag("proyecto")
+    - file.inFolder("wiki/proyectos")
+formulas:
+  actualizado_hace_dias: (now() - file.mtime).days
+  estado_label: if(estado == "activo", "🟢 activo", if(estado == "pausado", "🟡 pausado", if(estado == "cerrado", "🔴 cerrado", estado)))
+properties:
+  formula.estado_label:
+    displayName: Estado
+  ticket:
+    displayName: Ticket
+  last_updated:
+    displayName: Últ. update
+  formula.actualizado_hace_dias:
+    displayName: Hace (días)
+views:
+  - type: table
+    name: Proyectos
+    groupBy:
+      property: formula.estado_label
+      direction: DESC
+    order:
+      - file.name
+      - formula.estado_label
+      - ticket
+      - last_updated
+      - formula.actualizado_hace_dias

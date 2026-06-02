@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Template. Los placeholders __VAULT_DIR__ y __HOME__ los resuelve install.sh al cargar. -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.secondbrain.granola-transcript</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-lc</string>
+    <string>__VAULT_DIR__/.claude/launchd/watch-granola.sh</string>
+  </array>
+
+  <!-- Dispara apenas Granola reescribe su cache cifrado (CDC sobre el cache).
+       Inmune a la eviction del working-set rotativo: captura en cada write. -->
+  <key>WatchPaths</key>
+  <array>
+    <string>__HOME__/Library/Application Support/Granola/cache-v6.json.enc</string>
+  </array>
+
+  <!-- security (Keychain) vive en /usr/bin; HOME lo necesita expanduser("~"). -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin</string>
+    <key>HOME</key>
+    <string>__HOME__</string>
+  </dict>
+
+  <!-- No relanzar más de 1 vez cada 15s aunque el cache cambie muy seguido. -->
+  <key>ThrottleInterval</key>
+  <integer>15</integer>
+
+  <key>StandardOutPath</key>
+  <string>__VAULT_DIR__/.claude/logs/granola-watcher.log</string>
+  <key>StandardErrorPath</key>
+  <string>__VAULT_DIR__/.claude/logs/granola-watcher.log</string>
+
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>

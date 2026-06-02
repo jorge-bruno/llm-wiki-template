@@ -1,0 +1,47 @@
+filters:
+  and:
+    - file.hasTag("todo")
+    - file.inFolder("todos")
+formulas:
+  dias_para_due: if(due, (date(due) - today()).days, "")
+  vencido: if(due, date(due) < today() && estado != "hecho", false)
+  estado_label: if(estado == "pendiente", "🔵 pendiente", if(estado == "en-progreso", "🟡 en-progreso", if(estado == "hecho", "✅ hecho", estado)))
+properties:
+  formula.estado_label:
+    displayName: Estado
+  proyecto:
+    displayName: Proyecto
+  due:
+    displayName: Vence
+  formula.dias_para_due:
+    displayName: Días p/ vencer
+  formula.vencido:
+    displayName: Vencido
+views:
+  - type: table
+    name: Abiertos
+    filters:
+      and:
+        - estado != "hecho"
+    groupBy:
+      property: proyecto
+      direction: ASC
+    order:
+      - file.name
+      - formula.estado_label
+      - proyecto
+      - due
+      - formula.dias_para_due
+      - formula.vencido
+    sort:
+      - property: estado
+        direction: ASC
+  - type: table
+    name: Hechos
+    filters:
+      and:
+        - estado == "hecho"
+    order:
+      - file.name
+      - proyecto
+      - due

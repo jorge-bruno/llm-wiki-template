@@ -1,0 +1,53 @@
+filters:
+  and:
+    - file.hasTag("recurso")
+    - file.inFolder("wiki/biblioteca")
+formulas:
+  agregado_hace_dias: (now() - file.ctime).days
+properties:
+  area:
+    displayName: Área
+  tipo:
+    displayName: Tipo
+  estado:
+    displayName: Estado
+  tema:
+    displayName: Tema
+  url:
+    displayName: Link
+  agregado:
+    displayName: Agregado
+views:
+  - type: table
+    name: Por área
+    groupBy:
+      property: area
+      direction: ASC
+    order:
+      - file.name
+      - tipo
+      - estado
+      - tema
+    columnSize:
+      file.name: 284
+  - type: table
+    name: Por leer
+    filters:
+      and:
+        - estado == "por-leer"
+    order:
+      - file.name
+      - tipo
+      - tema
+      - url
+  - type: table
+    name: Todo
+    groupBy:
+      property: tipo
+      direction: ASC
+    order:
+      - file.name
+      - tipo
+      - estado
+      - tema
+      - agregado

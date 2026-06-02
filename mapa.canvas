@@ -1,0 +1,13 @@
+{
+	"nodes":[
+		{"id":"n_persona","type":"text","text":"**[[ana-perez|Ana Pérez]]**\nReferente técnica","x":-520,"y":-40,"width":240,"height":70,"color":"5"},
+		{"id":"n_proyecto","type":"text","text":"**[[pipeline-ingesta|Pipeline de Ingesta]]**\népica PROJ-101 · activo","x":-120,"y":-40,"width":260,"height":70,"color":"4"},
+		{"id":"n_decision","type":"text","text":"**[[2026-01-15-arquitectura-ingesta-event-driven|Decisión: event-driven]]**","x":-120,"y":120,"width":260,"height":70,"color":"6"},
+		{"id":"n_sistema","type":"text","text":"**[[snowflake|Snowflake]]**\nData warehouse","x":300,"y":-40,"width":240,"height":70}
+	],
+	"edges":[
+		{"id":"e1","fromNode":"n_persona","fromSide":"right","toNode":"n_proyecto","toSide":"left","label":"referente"},
+		{"id":"e2","fromNode":"n_proyecto","fromSide":"right","toNode":"n_sistema","toSide":"left","label":"usa"},
+		{"id":"e3","fromNode":"n_proyecto","fromSide":"bottom","toNode":"n_decision","toSide":"top"}
+	]
+}
