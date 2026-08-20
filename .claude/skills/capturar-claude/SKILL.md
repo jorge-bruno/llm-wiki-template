@@ -9,21 +9,25 @@ Captura el trabajo hecho en Claude Code (transcripts en `~/.claude/projects/*/*.
 `raw/claude/YYYY-MM-DD.md`. Es **Tier 1 / headless-safe**: solo lee el filesystem, no usa MCP.
 
 **Atribución por fecha del evento, NO por fecha de la corrida.** Cada sesión se archiva en la fecha
-*local* (TZ Argentina, UTC-3) en que ocurrió. Una sesión que abarca varios días aporta a cada fecha
-que tocó ("dividir por día"). Esto evita el sesgo de que el laburo de anoche caiga en el archivo de
-hoy: una corrida matinal barre la tarde/noche anterior, y esa actividad va a **su** día.
+*local* (tu timezone, default `America/Buenos_Aires` UTC-3) en que ocurrió. Una sesión que abarca
+varios días aporta a cada fecha que tocó ("dividir por día"). Esto evita el sesgo de que el laburo de
+anoche caiga en el archivo de hoy: una corrida matinal barre la tarde/noche anterior, y esa actividad
+va a **su** día.
 
 ## Pasos
 
-1. Corré el extractor (default: 2 días = ayer + hoy, para absorber la actividad nocturna que una
-   corrida matinal recién captura; pasá N mayor tras un gap, p.ej. Mac apagada el finde):
+1. Corré el extractor (default: `auto` = watermark auto-sanable — barre desde la última captura en
+   `raw/claude/` hasta hoy, así un lunes absorbe el finde y una vuelta de vacaciones el gap entero sin
+   tocar nada; clamp a 14 días). Pasá un N explícito para forzar una ventana puntual:
    ```bash
-   .claude/scripts/granola-venv/bin/python .claude/scripts/extract_claude_sessions.py "${1:-2}"
+   python3 .claude/scripts/extract_claude_sessions.py "${1:-auto}"
    ```
    El extractor ya bucketea por fecha local con cutoff alineado a medianoche.
 2. Parseá el JSON. Estructura: `cutoff_date`, `dates` (lista de fechas con actividad), y
    `by_date[<fecha>]` = `{jira_keys, entries}`. Cada `entry`: `project`, `title`, `branch`,
-   `jira_keys`, `keywords`, `message_count`, `first_ts`, `last_ts`.
+   `jira_keys`, `keywords`, `message_count`, `first_ts`, `last_ts`. Las entries se bucketean por
+   `(fecha, branch)`: una sesión multi-tema produce **una entry por branch** (la key de Jira sale del
+   branch, señal primaria). Al renderizar, **fusioná entries del mismo proyecto + key** en un bullet.
 3. **Por cada fecha en `dates`**, escribí/actualizá `raw/claude/<fecha>.md` (NO un solo archivo "hoy"):
    ```markdown
    > **Fuente**: sesiones de Claude Code · **Capturado**: <hoy> · ventana: <N> día(s)
@@ -31,14 +35,14 @@ hoy: una corrida matinal barre la tarde/noche anterior, y esa actividad va a **s
    # Sesiones de Claude Code — <fecha>
 
    ## <proyecto>
-   - <título resumido de la sesión> (<JIRA-KEY> si hay) — branch `<branch>`
+   - <título resumido de la sesión> (<PROJ-KEY> si hay) — branch `<branch>`
      - <keyword/contexto relevante si aporta>
    ```
    Reglas:
    - Agrupá por `project`. Mapeá `home` / paths sueltos a "general" si conviene; fusioná entries
      del mismo proyecto+tema en un bullet.
-   - Mantené las Jira keys entre paréntesis. **Descartá falsos positivos del regex** (p.ej. `AES-256`,
-     `UTF-8`): solo keys de proyectos reales (PROJ, etc.).
+   - Mantené las keys de Jira entre paréntesis. **Descartá falsos positivos del regex** (p.ej.
+     `AES-256`, `UTF-8`): solo keys de tu prefijo de proyecto real (ej. `PROJ-NNN`).
    - Es captura cruda: NO la escribas en pasado ni la edites como bitácora; es el insumo para `/bitacora`.
    - Filtrá ruido obvio (sesiones sin título útil, `/exit`, `/mcp`, evals).
 4. **Idempotencia / merge** (clave para no perder ni pisar):

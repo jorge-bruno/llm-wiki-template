@@ -16,12 +16,17 @@ Granola) sobrevivan al borrado de 7 días de Granola free.
    git add -A
    git commit -q -m "backup <FECHA>: <resumen corto de qué se capturó/compactó>
 
-   Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
+   Co-Authored-By: Claude <noreply@anthropic.com>"
    ```
    Ejemplo de resumen: "3 meetings Granola, bitácora, 2 TODOs nuevos".
-4. Push: `git push` (si no hay upstream configurado, `git push -u origin main`).
-5. Si el push falla por auth/red, informá el error textual y dejá el commit local hecho (no se pierde).
+4. Push con retry (backoff exponencial ante fallos transitorios de red/500):
+   ```bash
+   .claude/scripts/retry.sh --attempts 4 --base 2 --label "git push" -- git push
+   ```
+   (Si no hay upstream configurado: `.claude/scripts/retry.sh --attempts 4 --base 2 --label "git push" -- git push -u origin main`.)
+5. Si el push sigue fallando tras los reintentos (auth/red), informá el error textual y dejá el
+   commit local hecho (no se pierde; el próximo backup lo empuja).
 
 ## Nota
-- Recordá que `raw/` contiene data confidencial (transcripts de meetings, Slack, etc.) y el repo es privado. No agregues remotes
+- Recordá que `raw/` contiene data confidencial (el repo es privado). No agregues remotes
   públicos ni cambies la visibilidad.

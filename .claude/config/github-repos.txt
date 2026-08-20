@@ -1,0 +1,8 @@
+# Repos de GitHub a capturar con /capturar-github
+# Un repo por línea en formato OWNER/REPO.
+# Las líneas que empiezan con # son comentarios.
+#
+# Ejemplos (reemplazá por los tuyos):
+# tu-org/data-pipeline
+# tu-org/infra-live
+# tu-usuario/analytics-dbt

@@ -7,19 +7,22 @@
 .obsidian/cache
 .obsidian/cache/
 
+# Plugins de comunidad: código de terceros, se reinstala (community-plugins.json sí se versiona)
+.obsidian/plugins/
+
 # Papelera de Obsidian
 .trash/
 
-# Scratch de conversiones efímeras de markitdown (por las dudas)
+# Scratch de conversiones efímeras de markitdown
 .scratch/
 
-# Logs y candados de las corridas de launchd (la carpeta se versiona vacía con .gitkeep)
+# Logs y candados de las corridas del pipeline (la carpeta se versiona vacía con .gitkeep)
 .claude/logs/*
 !.claude/logs/.gitkeep
-
-# venv del extractor de Granola (dependencia cryptography; no versionar)
-.claude/scripts/granola-venv/
 
 # Bytecode de Python (se genera al importar los scripts)
 __pycache__/
 *.pyc
+
+# Board interactivo generado (lo regenera /todos vía build_kanban_html.py)
+kanban.html

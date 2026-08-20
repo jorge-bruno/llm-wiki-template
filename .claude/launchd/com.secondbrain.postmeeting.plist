@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Template. Los placeholders __VAULT_DIR__ los resuelve install.sh al cargar. -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.secondbrain.postmeeting</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-lc</string>
+    <string>__VAULT_DIR__/.claude/launchd/run-postmeeting.sh</string>
+  </array>
+
+  <!-- Poller cada 120s: barre el flag .postmeeting-pending y dispara /refresh cuando el meeting
+       se asienta. Barato — sale enseguida si no hay nada pendiente o si el cache sigue activo. -->
+  <key>StartInterval</key>
+  <integer>120</integer>
+
+  <key>StandardOutPath</key>
+  <string>__VAULT_DIR__/.claude/logs/postmeeting.log</string>
+  <key>StandardErrorPath</key>
+  <string>__VAULT_DIR__/.claude/logs/postmeeting.log</string>
+
+  <!-- No disparar en login/wake — solo en el intervalo. -->
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>

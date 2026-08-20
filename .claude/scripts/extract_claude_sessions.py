@@ -3,7 +3,7 @@
 
 Emite JSON estructurado por stdout; la skill `capturar-claude` lo renderiza a raw/claude/YYYY-MM-DD.md.
 
-Uso: python3 extract_claude_sessions.py [dias=1]
+Uso: python3 extract_claude_sessions.py [dias=auto]
 """
 
 from __future__ import annotations
@@ -14,12 +14,13 @@ import os
 import re
 import sys
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 
-# Zona horaria local para atribuir cada evento a su fecha *local* (no a la fecha de la corrida;
-# evita el sesgo de "lo de anoche cae en el archivo de hoy"). Ajustá el offset a tu zona.
-# (UTC-3 = Buenos Aires, sin DST. Para otra zona, cambiá hours.)
-LOCAL_TZ = timezone(timedelta(hours=-3))
+# Zona horaria local del vault. Atribuimos cada evento a su fecha *local* (no a la fecha de la
+# corrida), lo que evita el sesgo de "lo de anoche cae en el archivo de hoy".
+# >>> Ajustá esto a tu zona horaria (ej. ZoneInfo("Europe/Madrid"), ZoneInfo("America/New_York")).
+LOCAL_TZ = ZoneInfo("America/Buenos_Aires")
 
 
 def to_local_date(ts_str: str):
@@ -35,29 +36,32 @@ def to_local_date(ts_str: str):
     return dt.astimezone(LOCAL_TZ).date()
 
 
-# Claude Code codifica el path absoluto del proyecto en el nombre del dir de ~/.claude/projects,
-# reemplazando todo carácter no-alfanumérico por '-'. Derivamos el prefijo del home dinámicamente
-# para mapear el path a un nombre legible (en vez de hardcodear un usuario concreto).
-HOME_DIR_PREFIX = re.sub(r"[^a-zA-Z0-9]", "-", os.path.expanduser("~"))
+# Los dirs de ~/.claude/projects codifican el path absoluto del proyecto reemplazando todo lo
+# no-alfanumérico por '-'. Derivamos la codificación de TU home para reconocer el proyecto "home".
+_HOME = os.path.expanduser("~")
+_HOME_ENC = re.sub(r"[^A-Za-z0-9]+", "-", _HOME).strip("-")  # ej. "Users-tu-usuario"
 
-# OPCIONAL: agregá acá los nombres de tus repos para que aparezcan con nombre prolijo en la captura.
-# Si lo dejás vacío, el fallback deriva un nombre razonable del path igual. Ej:
-#   KNOWN_REPOS = ["mi-repo-infra", "mi-repo-dbt", "llm-wiki"]
-KNOWN_REPOS: list[str] = []
+# (Opcional) Nombres de tus repos, para que el proyecto salga con un nombre lindo en vez del path
+# codificado. Personalizá esta lista con los tuyos; si la dejás vacía, se usa el fallback de abajo.
+KNOWN_REPOS = [
+    "data-pipeline",
+    "infra-live",
+    "analytics-dbt",
+]
 
 
 def get_project_name(proj_dir_name: str) -> str:
     """Convierte el nombre del directorio del proyecto en un nombre legible."""
-    if proj_dir_name in (HOME_DIR_PREFIX, HOME_DIR_PREFIX + "-"):
+    norm = proj_dir_name.replace("_", "-").strip("-")
+    if norm == _HOME_ENC or norm == f"-{_HOME_ENC}".strip("-"):
         return "home"
-    norm = proj_dir_name.replace("_", "-")
     for repo in KNOWN_REPOS:
         if repo in norm:
             return repo
     # Fallback: sacar el prefijo del home y quedarse con el resto.
-    clean = proj_dir_name
-    if clean.startswith(HOME_DIR_PREFIX + "-"):
-        clean = clean[len(HOME_DIR_PREFIX) + 1:]
+    clean = norm
+    if _HOME_ENC and clean.startswith(_HOME_ENC):
+        clean = clean[len(_HOME_ENC):]
     clean = clean.strip("-")
     if not clean:
         return "home"
@@ -135,7 +139,9 @@ def parse_session(filepath: str) -> dict | None:
                 ts = d.get("timestamp")
                 if not ts:
                     continue
-                messages.append({"ts": ts, "text": text[:500]})
+                # El branch de git (convención <tipo>/PROJ-NNN/<slug>) viene en cada record y es la
+                # señal primaria del ticket; los mensajes de usuario suelen ser "dale segui"/"mergeado".
+                messages.append({"ts": ts, "text": text[:500], "branch": d.get("gitBranch") or branch})
     except (IOError, OSError):
         return None
 
@@ -149,9 +155,46 @@ def parse_session(filepath: str) -> dict | None:
     }
 
 
+def auto_days(today_local, floor=2, ceil=14) -> int:
+    """Ventana auto-sanable (watermark): cubre desde la última captura en `raw/claude/` hasta hoy.
+    Sin estado extra — los `.md` ya capturados SON la marca de agua: un lunes barre el finde y una
+    vuelta de vacaciones barre el gap entero (clamp a `ceil` para no degenerar). Sin capturas → `floor`."""
+    raw_dir = _find_raw_claude_dir()
+    if not raw_dir:
+        return floor
+    latest = None
+    for name in os.listdir(raw_dir):
+        m = re.match(r"(\d{4}-\d{2}-\d{2})\.md$", name)
+        if not m:
+            continue
+        try:
+            dt = datetime.strptime(m.group(1), "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        if latest is None or dt > latest:
+            latest = dt
+    if latest is None:
+        return floor
+    span = (today_local - latest).days + 1  # inclusivo: latest..hoy
+    return max(floor, min(ceil, span))
+
+
+def _find_raw_claude_dir():
+    """`raw/claude/` relativo al cwd (la skill corre desde el root del vault) o al script."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    for c in (os.path.join(os.getcwd(), "raw", "claude"),
+              os.path.join(here, "..", "..", "raw", "claude")):
+        if os.path.isdir(c):
+            return c
+    return None
+
+
 def main():
-    days = int(sys.argv[1]) if len(sys.argv) > 1 else 1
+    arg = sys.argv[1] if len(sys.argv) > 1 else "auto"
     today_local = datetime.now(LOCAL_TZ).date()
+    # Ventana: "auto" = watermark auto-sanable (desde la última captura hasta hoy); un N explícito
+    # fuerza esa cantidad de días-calendario.
+    days = auto_days(today_local) if arg == "auto" else max(1, int(arg))
     # Cutoff alineado a medianoche local: cubre `days` días-calendario terminando hoy.
     # (No usamos "ahora - N*24h" porque excluiría sesiones tempranas del día al regenerar.)
     cutoff_date = today_local - timedelta(days=days - 1)
@@ -180,15 +223,19 @@ def main():
     # fecha (>= cutoff) en la que tuvo actividad → "dividir por día".
     by_date = {}  # "YYYY-MM-DD" -> [entry]
     for s in parsed:
-        msgs_by_date = {}
+        # Bucketeo por (fecha local, branch): una sesión que cruza días o temas aporta una entrada
+        # por cada combinación. Separa trabajos que si no colapsarían en una sola línea (p.ej. una
+        # sesión que abre con un tema y sigue con un refactor de PROJ-215 bajo otro branch).
+        groups = {}  # (date, branch) -> [msg]
         for m in s["messages"]:
             d = to_local_date(m["ts"])
             if d is None or d < cutoff_date:
                 continue
-            msgs_by_date.setdefault(d, []).append(m)
+            br = m.get("branch") or s.get("branch")
+            groups.setdefault((d, br), []).append(m)
 
-        for d, msgs in msgs_by_date.items():
-            # Título = primer mensaje no-ruido de ESE día (no el de apertura de la sesión).
+        for (d, br), msgs in groups.items():
+            # Título = primer mensaje no-ruido de ESE día+branch (no el de apertura de la sesión).
             title = None
             for m in msgs:
                 line = re.sub(r"<[^>]+>", "", m["text"].split("\n")[0]).strip()
@@ -196,9 +243,11 @@ def main():
                     title = line[:200]
                     break
             if not title:
-                continue  # ese día solo tuvo ruido (p.ej. /clear) → no aporta entrada
+                continue  # ese bloque solo tuvo ruido (p.ej. /clear) → no aporta entrada
 
-            jira = list(extract_jira_keys(s["branch"])) if s.get("branch") else []
+            # Jira key: el branch es la señal primaria (convención <tipo>/PROJ-NNN/<slug>);
+            # el texto de los mensajes es complemento.
+            jira = list(extract_jira_keys(br)) if br else []
             for m in msgs:
                 jira.extend(extract_jira_keys(m["text"]))
             ts_sorted = sorted(m["ts"] for m in msgs)
@@ -206,7 +255,7 @@ def main():
             by_date.setdefault(d.isoformat(), []).append({
                 "project": s["project"],
                 "session_id": s["session_id"],
-                "branch": s.get("branch"),
+                "branch": br,
                 "title": title,
                 "jira_keys": sorted(set(jira)),
                 "keywords": [m["text"][:80] for m in msgs[:5]],
@@ -225,7 +274,7 @@ def main():
 
     output = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "tz": "local (UTC-3 por defecto; configurable en LOCAL_TZ)",
+        "tz": str(LOCAL_TZ),
         "cutoff_date": cutoff_date.isoformat(),
         "days": days,
         "dates": sorted(by_date),

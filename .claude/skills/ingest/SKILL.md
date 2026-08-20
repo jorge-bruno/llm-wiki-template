@@ -48,8 +48,8 @@ Decidí el modo según lo que pida el usuario:
 
 markitdown no puede bajar un Google Doc/Sheet/Slide desde su URL (están detrás de auth de Google y la
 URL no es un archivo). Para esas fuentes, **`gog` hace la adquisición** (exporta/baja a un archivo
-local) y de ahí seguís el flujo normal de los dos modos. `gog` ya está instalado y la cuenta
-`tu-usuario@ejemplo.com` es la default, con scopes de Drive/Docs/Sheets/Slides.
+local) y de ahí seguís el flujo normal de los dos modos. `gog` ya está instalado y tu cuenta
+(ej. `tu-usuario@ejemplo.com`) es la default, con scopes de Drive/Docs/Sheets/Slides.
 
 Lo más simple es delegar la detección + exportación al helper (saca el `<ID>` de la URL, elige el
 comando `gog` por tipo y exporta):
@@ -72,7 +72,10 @@ Encaje con los **dos modos**:
 
 Notas `gog`:
 - Auth: si falla por token/scope, `gog auth list` muestra las cuentas; reautorizá con `gog login <email>`.
-- Multi-cuenta: default `tu-usuario@ejemplo.com`; si el archivo vive en otra cuenta, agregá `-a <email>`.
+- Multi-cuenta: default tu cuenta principal; si el archivo vive en otra cuenta, agregá `-a <email>`.
+
+## Carve-outs
+- **Calendar**: eventos de Google Calendar se capturan con `capturar-calendar` (MCP), no con `ingest`.
 
 ## Notas
 - Si la fuente es audio/video y `markitdown` avisa que falta `ffmpeg`, decile al usuario que

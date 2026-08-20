@@ -23,7 +23,7 @@ fi
 echo "vault:  $VAULT_DIR"
 echo "claude: $CLAUDE_BIN"
 
-for label in com.secondbrain.daily com.secondbrain.weekly com.secondbrain.monthly com.secondbrain.granola-transcript; do
+for label in com.secondbrain.daily com.secondbrain.refresh com.secondbrain.postmeeting com.secondbrain.weekly com.secondbrain.monthly com.secondbrain.granola-transcript; do
   # Renderizo el template (placeholders -> valores reales) hacia ~/Library/LaunchAgents.
   sed -e "s#__VAULT_DIR__#$VAULT_DIR#g" \
       -e "s#__HOME__#$HOME#g" \

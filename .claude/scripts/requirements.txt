@@ -1,8 +1,0 @@
-# Dependencias del venv dedicado para el extractor de Granola (granola_extract.py).
-# El python3 del sistema normalmente no trae `cryptography`, por eso se usa un venv aislado.
-#
-# Setup (una vez):
-#   python3 -m venv .claude/scripts/granola-venv
-#   .claude/scripts/granola-venv/bin/pip install -r .claude/scripts/requirements.txt
-#
-cryptography>=42.0

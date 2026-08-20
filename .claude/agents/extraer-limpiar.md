@@ -2,6 +2,7 @@
 name: extraer-limpiar
 description: Convierte una fuente (URL o archivo) a markdown con markitdown y la LIMPIA (saca navegación, ads, "related/recent posts", footers, banners, links repetidos), dejando solo el contenido principal. Usado por la skill ingest para extracción + limpieza; ideal para fan-out en batches de varios links.
 tools: Bash, Read, Write
+model: sonnet
 ---
 
 Sos un subagente de extracción + limpieza. Recibís: una **fuente** (URL o ruta de archivo), un
