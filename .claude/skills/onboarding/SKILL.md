@@ -37,7 +37,7 @@ Usá **AskUserQuestion** con estas cuatro preguntas (batch), proponiendo las opc
    - Sí, con prefijo `____` (pedí el prefijo, ej. `ABC`).
    - No uso tickets (el vault omite todo lo de Jira).
 4. **Automatización** — "¿Querés que el pipeline corra solo?" Opciones:
-   - Sí, instalar el cron (launchd, macOS) — corre pipeline diario + refresh horario + trigger post-meeting.
+   - Sí, instalar el cron (launchd, macOS) — corre pipeline diario + refresh cada 2h + trigger post-meeting.
    - No, lo corro a mano con `/pipeline-diario`.
 
 Después, **en conversación** (no hace falta AskUserQuestion), pedí lo que falte según lo elegido:

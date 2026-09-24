@@ -50,6 +50,24 @@ for i in 1 2 3 4; do
   sleep 30
 done
 
+# Pre-sesión determinista (optimización de tokens): GitHub ya no necesita un turno de LLM para
+# renderizar raw/github/<fecha>.md — el extractor lo emite directo. Si corre limpio, marcamos el
+# tier ANTES de que arranque la sesión: `pipeline_checkpoint.py start` lo va a devolver en `skip` y
+# la sesión no lo vuelve a tocar. Si falla (gh no autenticado, error de red), NO marcamos nada y la
+# sesión lo captura como fallback (capturar-github, Tier 2 best-effort) — nunca abortamos por esto.
+# NOTA: Claude queda deliberadamente afuera de este bloque: raw/claude/ es síntesis narrativa (qué se
+# hizo en cada sesión, bugs, cross-refs), no un template mecánico; un render determinista colapsaría
+# N sesiones en un bullet y degradaría el digest en silencio.
+python3 .claude/scripts/pipeline_checkpoint.py start refresh >/dev/null 2>&1
+GH_PRESESION_OUT=$(python3 .claude/scripts/extract_github_prs.py --markdown auto)
+GH_PRESESION_RC=$?
+if [ "$GH_PRESESION_RC" -eq 0 ] && ! echo "$GH_PRESESION_OUT" | grep -q '"error"'; then
+  python3 .claude/scripts/pipeline_checkpoint.py mark refresh github regenerated "pre-sesión (extractor determinista)" >/dev/null 2>&1
+  echo "$(date '+%F %T') refresh: github pre-sesión OK, tier marcado"
+else
+  echo "$(date '+%F %T') refresh: github pre-sesión no marcó tier (rc=$GH_PRESESION_RC), la sesión lo captura de fallback"
+fi
+
 echo "$(date '+%F %T') corriendo /refresh"
 # Reinvoke acotado: si la sesión muere a mitad (OOM, idle timeout, crash) o termina sin cerrar el
 # checkpoint, reintentamos. El checkpoint (pipeline_checkpoint.py) persiste entre invocaciones, así

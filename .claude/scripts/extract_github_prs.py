@@ -221,8 +221,153 @@ def parse_pr(raw: dict, repo: str) -> dict:
     }
 
 
+STATE_LABELS = {"open": "abierto", "merged": "mergeado", "closed": "cerrado"}
+
+_SENTINEL_RE = re.compile(r"^<!-- pr: (?P<repo>\S+)#(?P<num>\d+) -->$")
+_SECTION_RE = re.compile(r"^## (\S+)$")
+
+
+def _capture_stamp(now: "datetime") -> str:
+    """`~HH:Mx ART`: hora exacta, minuto redondeado a la decena (convención de captura del vault)."""
+    return f"{now:%H}:{now.minute // 10}x"
+
+
+def render_pr_bullet(pr: dict) -> str:
+    """Sentinel `<!-- pr: owner/repo#N -->` + bullet, exactamente como lo renderiza capturar-github."""
+    state_word = "draft" if pr.get("is_draft") else STATE_LABELS.get(pr["state"], pr["state"])
+    state = f"**{state_word}**"
+    review = pr.get("review_decision") or ""
+    if review == "APPROVED":
+        state += " ✓ aprobado"
+    elif review == "CHANGES_REQUESTED":
+        state += " ⚑ cambios solicitados"
+    # Algunos PRs (release-please, bots) traen el título de GitHub ya terminado en "(PROJ-NNN)":
+    # lo sacamos de ahí para no duplicarlo con el paréntesis de jira_keys que agregamos nosotros.
+    title = re.sub(r"\s*\([A-Z]{2,6}-\d+(?:,\s*[A-Z]{2,6}-\d+)*\)\s*$", "", pr["title"])
+    jira = f" ({', '.join(pr['jira_keys'])})" if pr.get("jira_keys") else ""
+    sentinel = f"<!-- pr: {pr['repo']}#{pr['number']} -->"
+    bullet = (
+        f"- **PR #{pr['number']}** · `{pr['branch']}` · {state} · @{pr['author']} — "
+        f"{title}{jira} *(fuente: [#{pr['number']}]({pr['url']}))*"
+    )
+    return f"{sentinel}\n{bullet}"
+
+
+def render_header(today_local, days: int, repos: list[str]) -> list[str]:
+    now = datetime.now(AR_TZ)
+    repo_names = ", ".join(r.split("/", 1)[1] if "/" in r else r for r in repos)
+    return [
+        f"> **Fuente**: GitHub PRs (`gh`) · **Capturado**: {today_local.isoformat()} "
+        f"(~{_capture_stamp(now)} ART) · repos: {repo_names} · ventana: {days} día(s)",
+        "",
+    ]
+
+
+def _render_sections(section_order: list[str], sections: dict[str, dict[int, str]]) -> list[str]:
+    lines: list[str] = []
+    for repo in section_order:
+        blocks = sections.get(repo) or {}
+        if not blocks:
+            continue
+        lines.append(f"## {repo}")
+        lines.append("")
+        for num in sorted(blocks, reverse=True):
+            lines.append(blocks[num])
+        lines.append("")
+    return lines
+
+
+def render_date_file(date_str: str, by_repo: dict[str, list[dict]], today_local, days: int,
+                      repos: list[str]) -> str:
+    """Render completo (archivo de hoy, o archivo previo que todavía no existía)."""
+    sections = {repo: {pr["number"]: render_pr_bullet(pr) for pr in prs} for repo, prs in by_repo.items()}
+    # Orden de secciones: el de `repos` (config), restringido a los que tuvieron actividad ese día.
+    order = [r for r in repos if r in sections] + [r for r in sections if r not in repos]
+    lines = render_header(today_local, days, repos)
+    lines.append(f"# GitHub PRs — {date_str}")
+    lines.append("")
+    lines.extend(_render_sections(order, sections))
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def parse_existing_prs(text: str) -> tuple[dict[str, dict[int, str]], list[str]]:
+    """Parsea un `raw/github/<fecha>.md` existente en {repo: {numero: bloque}} + orden de secciones."""
+    lines = text.split("\n")
+    sections: dict[str, dict[int, str]] = {}
+    order: list[str] = []
+    current_repo = None
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        m = _SECTION_RE.match(line)
+        if m:
+            current_repo = m.group(1)
+            if current_repo not in sections:
+                sections[current_repo] = {}
+                order.append(current_repo)
+            i += 1
+            continue
+        sm = _SENTINEL_RE.match(line)
+        if sm and current_repo is not None:
+            num = int(sm.group("num"))
+            block = line
+            if i + 1 < len(lines):
+                block += "\n" + lines[i + 1]
+                i += 2
+            else:
+                i += 1
+            sections[current_repo][num] = block
+            continue
+        i += 1
+    return sections, order
+
+
+def merge_date_file(date_str: str, by_repo: dict[str, list[dict]], existing_text: str, today_local,
+                     days: int, repos: list[str]) -> str:
+    """Mergea el bucket fresco sobre un archivo de un día previo ya existente: upsert por sentinel,
+    preserva todo lo que no está en el bucket fresco (PRs migrados de bucket en corridas previas)."""
+    sections, order = parse_existing_prs(existing_text)
+    for repo, prs in by_repo.items():
+        if repo not in sections:
+            sections[repo] = {}
+            order.append(repo)
+        for pr in prs:
+            sections[repo][pr["number"]] = render_pr_bullet(pr)
+    lines = render_header(today_local, days, repos)
+    lines.append(f"# GitHub PRs — {date_str}")
+    lines.append("")
+    lines.extend(_render_sections(order, sections))
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def write_markdown(output: dict, out_dir: Path, today_local) -> list[str]:
+    repos = output["repos"]
+    days = output["days"]
+    written: list[str] = []
+    for date_str in output["dates"]:
+        by_repo = output["by_date"].get(date_str, {})
+        path = out_dir / f"{date_str}.md"
+        if date_str == today_local.isoformat() or not path.exists():
+            content = render_date_file(date_str, by_repo, today_local, days, repos)
+        else:
+            content = merge_date_file(date_str, by_repo, path.read_text(), today_local, days, repos)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
+        written.append(str(path))
+    return written
+
+
 def main() -> None:
-    arg = sys.argv[1] if len(sys.argv) > 1 else "auto"
+    argv = sys.argv[1:]
+    markdown_mode = "--markdown" in argv
+    if markdown_mode:
+        argv.remove("--markdown")
+    out_dir_arg = None
+    if "--out-dir" in argv:
+        idx = argv.index("--out-dir")
+        out_dir_arg = argv[idx + 1]
+        del argv[idx:idx + 2]
+    arg = argv[0] if argv else "auto"
     today_local = datetime.now(LOCAL_TZ).date()
 
     days = auto_days(today_local) if arg == "auto" else max(1, int(arg))
@@ -232,7 +377,10 @@ def main() -> None:
 
     if not check_gh_auth():
         # Salida limpia para que el pipeline no falle
-        print(json.dumps({"error": "gh_not_authenticated", "dates": [], "by_date": {}}))
+        if markdown_mode:
+            print(json.dumps({"error": "gh_not_authenticated", "markdown": True, "written": []}))
+        else:
+            print(json.dumps({"error": "gh_not_authenticated", "dates": [], "by_date": {}}))
         sys.exit(0)
 
     repos = read_repos()
@@ -272,6 +420,15 @@ def main() -> None:
         "dates": dates,
         "by_date": by_date,
     }
+
+    if markdown_mode:
+        out_dir = Path(out_dir_arg) if out_dir_arg else (_find_raw_github_dir() or Path("raw/github"))
+        written = write_markdown(output, out_dir, today_local)
+        for w in written:
+            log(f"escrito: {w}")
+        print(json.dumps({"markdown": True, "written": written, "dates": dates}, ensure_ascii=False))
+        return
+
     print(json.dumps(output, indent=2, ensure_ascii=False))
 
 

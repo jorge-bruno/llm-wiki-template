@@ -77,16 +77,25 @@ crea/actualiza desde el WIP y mantiene el board `todos.base` al día.
      `origen` siga en la ventana de captura.
    - Contra Jira: si el accionable ya es un ticket PROJ, **no** crees un TODO nuevo — referencialo
      (poné la key en `proyecto`) y marcá en el cuerpo que ya está en el board.
-   - **Contra bitácoras recientes** (ventana: últimas 3 entradas de `bitacora/`, leelas con `ls bitacora/*.md | sort | tail -3`):
-     para cada candidato, verificar si ya aparece como **entregado**. Dos señales de cierre a buscar
-     en los bullets de la bitácora: verbos de cierre (`mergeado`, `completó`, `finalizó`, `cerró`,
-     `implementó y verificó`, `Done`, `completado`) combinados con alguno de estos matches:
-     a. **Key Jira match**: la key del candidato (del campo `proyecto:` o del cuerpo con regex
-        `PROJ-\d+`) coincide con una key en un bullet de cierre → descartar, no crear.
-     b. **Tokens semánticos**: tomá los 3-4 sustantivos/siglas más distintivos del accionable (ej.
-        para "Configurar permisos IAM para el servicio de reportes" → tokens: `IAM`, `permisos`,
-        `reportes`). Si ≥3 de esos tokens aparecen en un mismo bullet de cierre → descartar, no
-        crear; loggear "descartado por bitácora: <bullet>".
+   - **Contra bitácoras recientes** (evidencia de cierre vía script determinista — **no leas las
+     bitácoras completas**): corré
+     ```
+     printf '%s\n' "<accion 1>" "<accion 2>	<PROJ-NNN>" | python3 .claude/scripts/todos_evidence_scan.py dedupe
+     ```
+     (una acción-candidata por línea; `<TAB><proyecto>` opcional si el candidato mapea a una key
+     Jira). El script escanea las últimas 3 bitácoras y devuelve, por candidato, SOLO las líneas
+     donde matchea un **verbo de cierre** (`mergeado`, `completó`, `finalizó`, `cerró`, `implementó
+     y verificó`, `Done`, `completado`, etc. — lista completa y ampliable en el script) combinado
+     con alguno de estos matches:
+     a. **Key Jira match**: la key del candidato coincide con una key en la línea.
+     b. **Tokens semánticos**: ≥3 de los 3-4 tokens distintivos del accionable (ej. para "Configurar
+        permisos IAM para el servicio de reportes" → `IAM`, `permisos`, `reportes`) aparecen en la
+        línea.
+     El script solo **detecta candidatos** — el juicio final (¿esa línea realmente confirma la
+     entrega?) sigue siendo tuyo: leé el `texto_linea` que devuelve (nunca la bitácora entera) y
+     decidí. Si confirma → descartar, no crear; loggear "descartado por bitácora: <bullet>". Un
+     candidato sin matches en la salida no tiene evidencia de cierre — no requiere leer bitácoras
+     a mano.
      **Por qué importa**: un TODO puede etiquetarse con la épica contenedora (ej. PROJ-225) mientras
      el trabajo se cerró bajo un sub-ticket (ej. PROJ-237). Sin este check, el pipeline crea TODOs
      stale para trabajo ya entregado.
@@ -124,23 +133,32 @@ crea/actualiza desde el WIP y mantiene el board `todos.base` al día.
      en Slack digan "buenísimo" no cierra una migración a prod.
 
    **a. Grooming por bitácora (corre SIEMPRE, sobre todos los TODOs con `estado != hecho`).**
-   - Ventana: leé las bitácoras desde el `created` del TODO hasta hoy (no solo las últimas 3). En
-     la práctica: `ls bitacora/*.md | sort` y tomá las de fecha ≥ `created`. Acotá a los últimos
-     **14 días** como tope para no explotar tokens.
-   - Para cada TODO, buscá en esas bitácoras el mismo accionable como **entregado**: verbos de
-     cierre (`mergeado`, `completó`, `finalizó`, `cerró`, `implementó y verificó`, `Done`,
-     `aplicado`, `resuelto`) + match por **key Jira** o por **≥3 tokens semánticos** distintivos
-     (mismo criterio que el dedupe del paso 2). Si matchea → setear `estado: hecho` y appendear:
+   - Corré, una sola vez para todos los TODOs abiertos (**no leas las bitácoras completas**):
+     ```
+     python3 .claude/scripts/todos_evidence_scan.py groom
+     ```
+     El script escanea, por TODO, las bitácoras desde su `created` hasta hoy (tope **14 días**) y
+     devuelve SOLO las líneas candidatas: donde matchea un **verbo de cierre** (`mergeado`,
+     `completó`, `finalizó`, `cerró`, `implementó y verificó`, `Done`, `aplicado`, `resuelto`, etc.
+     — lista completa y ampliable en el script) combinado con la **key Jira** del TODO o **≥3 de sus
+     tokens semánticos** distintivos (mismo criterio que el dedupe del paso 2). La salida trae
+     `{archivo_todo, matches: [{bitacora, linea_nro, texto_linea}]}` — solo esas líneas, no los
+     archivos enteros.
+   - Para cada match devuelto, juzgá vos si esa línea confirma la entrega del TODO — el script
+     solo detecta candidatos, el cierre sigue siendo criterio tuyo. Si confirma → setear
+     `estado: hecho` y appendear:
      ```
      ## Cierre <YYYY-MM-DD> — entregado según bitácora <bitacora/YYYY-MM-DD.md>: "<bullet>"
      ```
+     Un TODO sin matches en la salida del script no tiene evidencia de cierre; no requiere lectura
+     manual adicional de bitácoras.
    - Esto cubre por igual TODOs **con y sin** key Jira (los sin key —temas internos sin ticket—
      solo tienen esta vía).
 
    **b. Sync contra Jira (Tier 2, best-effort, complementa lo anterior).**
    - Juntá las keys Jira de los TODOs aún `estado != hecho` (campo `proyecto:` formato `PROJ-NNN`, o
      fallback regex `PROJ-\d+` en el cuerpo). Una sola JQL: `project = PROJ AND key in (…)` con
-     `fields=["status"]`. Mismo patrón que `/compactar` en "Sincronización de `estado` con Jira".
+     `fields=["status"]`. Mismo patrón que `/compactar-diario` en "Sincronización de `estado` con Jira".
    - Ticket en `statusCategory.key == "done"` → setear `estado: hecho` + nota de cierre
      `## Cierre <YYYY-MM-DD> — <PROJ-NNN> pasó a <status> en Jira`.
    - **Ticket abierto NO implica TODO abierto**: si la épica sigue `En curso` pero el grooming por

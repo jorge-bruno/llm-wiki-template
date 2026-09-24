@@ -58,9 +58,6 @@ Si las tools de lectura de Calendar no están disponibles (solo aparecen `authen
    bitácora a unir "reunión agendada" ↔ "resumen". (Granola suele nombrar el meeting con el título
    del evento de calendar, así que el match suele ser directo por título.)
 5. Idempotencia: archivo por fecha.
-6. Si el MCP de Calendar no está disponible, terminá sin error (el pipeline degrada con gracia) pero
-   distinguí el motivo con el preflight (`checks.mcp.servers.calendar`): `connected: false` → `skipped`
-   (falta el OAuth, no se completa headless); conector sano que esta sesión no pudo usar (el `ToolSearch
-   select:` no trae el schema, o socket error) → **`deferred`**, que el wrapper reintenta en sesión nueva.
-   Varios conectores de la misma plataforma suelen caerse juntos: si otro MCP de la misma familia
-   tampoco aparece pero el resto sí, es enumeración fallida de la sesión, no falta de auth.
+6. Si el MCP de Calendar no está disponible, terminá sin error (el pipeline degrada con gracia).
+   Clasificación de tier y política de retry MCP: seguí `.claude/skills/_shared/mcp-retry-policy.md`
+   (usá `checks.mcp.servers.calendar` como health del conector).

@@ -26,15 +26,7 @@ captura. Una corrida matinal con ventana de 24h trae mensajes de **ayer** — es
    ```bash
    python3 .claude/scripts/pipeline_preflight.py   # → checks.mcp.servers.slack.connected
    ```
-   | Preflight | ToolSearch | Qué es | Qué hacés |
-   |---|---|---|---|
-   | `connected: true` | trae el schema | todo bien | capturá |
-   | `connected: true` | **no** lo trae | el conector está sano pero **no quedó enumerado en esta sesión** (pasa en una fracción de las corridas headless: se caen juntos varios conectores de la misma plataforma mientras otros MCP siguen andando) | `deferred` — el wrapper relanza una sesión nueva, que suele resolverlo. **Nunca `skipped`** |
-   | `connected: false` | — | falta auth (OAuth necesita browser, no se arregla headless) | `skipped` con el motivo |
-   | `connected: true` | trae el schema, pero la llamada falla con socket error | proxy caído a mitad | reintentá (política de retry del pipeline) y si no → `deferred` |
-
-   Nunca declares "Slack no disponible" sin haber mirado el preflight: el MCP suele conectar bien en la
-   inmensa mayoría de las sesiones, así que un skip a ciegas descarta el día por nada.
+   Clasificación de tier y política de retry MCP: seguí `.claude/skills/_shared/mcp-retry-policy.md`.
 
 1. Ventana por defecto: últimas 24h (ajustable; ampliala tras un gap). La captura puede abarcar
    **dos fechas** (ayer + hoy) → vas a escribir en uno o dos archivos según el `ts` de cada mensaje.

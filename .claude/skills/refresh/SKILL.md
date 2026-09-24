@@ -1,13 +1,13 @@
 ---
 name: refresh
-description: Mini-pipeline intradía — re-captura Granola/Claude/Slack/GitHub, regenera la bitácora del día, genera TODOs, re-corre compactar diario y hace backup. Corre cada hora de 09:00 a 18:00 L-V vía launchd y además tras cada meeting (trigger event-driven post-meeting). Más liviano que el pipeline completo; sin Calendar. Usar también manualmente cuando querés que la bitácora y los TODOs del día reflejen reuniones que ya ocurrieron.
+description: Mini-pipeline intradía — re-captura Granola/Claude/Slack/GitHub, regenera la bitácora del día, genera TODOs, re-corre compactar diario y hace backup. Corre cada 2 horas de 10:00 a 18:00 L-V vía launchd y además tras cada meeting (trigger event-driven post-meeting). Más liviano que el pipeline completo; sin Calendar. Usar también manualmente cuando querés que la bitácora y los TODOs del día reflejen reuniones que ya ocurrieron.
 ---
 
 # refresh — mini-pipeline intradía
 
 Versión liviana del pipeline diario. Corre varias veces por día sin conflicto porque cada paso es
 idempotente. El pipeline completo (`/pipeline-diario`) sigue siendo el responsable del start-of-day
-(suma Calendar). Además del schedule (cada hora 09:00–18:00 L-V), un trigger event-driven — el poller
+(suma Calendar). Además del schedule (cada 2 horas, 10:00–18:00 L-V), un trigger event-driven — el poller
 `com.secondbrain.postmeeting`, disparado por el watcher `com.secondbrain.granola-transcript` cuando
 marca un meeting como asentado — corre `/refresh` poco después de que termina cada meeting, así los
 TODOs y la bitácora reflejan lo recién hablado sin esperar al próximo slot.
@@ -35,16 +35,7 @@ TODOs y la bitácora reflejan lo recién hablado sin esperar al próximo slot.
    - **Recién con el schema cargado**, hacé **una** llamada barata de prueba (Granola →
      `get_account_info`; Atlassian → `atlassianUserInfo`; Slack → no hace falta probe aparte, la primera
      búsqueda de la captura ya lo es).
-   - **Cómo clasificar el resultado** (regla determinística — no lo decidas a ojo):
-     | Preflight | ToolSearch / llamada | Estado del tier |
-     |---|---|---|
-     | `connected: true` | anda | corré el tier |
-     | `connected: true` | el `select:` NO trae el schema | **`deferred`** — el conector está sano pero no quedó enumerado en esta sesión; el wrapper relanza una sesión nueva y ahí suele andar |
-     | `connected: true` | socket error / sin respuesta | reintentá (política de retry) y si no → **`deferred`** |
-     | `connected: false` | — | `skipped` (falta OAuth; no se arregla headless) |
-     Pasa seguido que los 3 conectores de claude.ai (Slack/Calendar/Atlassian) no se enumeren juntos
-     mientras Granola sí: eso es enumeración fallida de la sesión, **no** "MCP no disponible". Un
-     `skipped` ahí descarta el día para nada (el conector conecta bien en la gran mayoría de las sesiones).
+   - **Clasificación de tier y política de retry MCP**: seguí `.claude/skills/_shared/mcp-retry-policy.md`.
 
 3. **Iniciá el checkpoint** y fijate qué saltear por resume:
    ```bash
@@ -52,19 +43,11 @@ TODOs y la bitácora reflejan lo recién hablado sin esperar al próximo slot.
    ```
    Si `resumed: true`, los tiers en `skip` ya se completaron en una corrida que se cortó hace poco
    (dentro de la ventana de resume) → **no los rehagas**; corré solo los de `pending`. Si `resumed:
-   false`, arrancás de cero (lo normal en cada slot horario).
+   false`, arrancás de cero (lo normal en cada slot del schedule).
 
 ## Política de retry (aplicar en cada tier de red/MCP)
 
-- **Comandos shell con red** (`git push`, extractores): envolvelos con
-  `.claude/scripts/retry.sh --attempts 3 --base 2 --label "<qué> " -- <cmd...>`. Reintenta con
-  backoff exponencial + jitter ante cualquier exit ≠ 0 (cubre 500s, socket errors y timeouts que el
-  comando propaga como fallo).
-- **Llamadas MCP** (las hace el agente, no el shell): ante **500 / socket error / stream idle
-  timeout / "overloaded"**, reintentá hasta 3 veces con backoff `5s → 15s → 30s` (el backoff corto de
-  1-2-4s no alcanzaba: cuando el proxy se cae, tarda más que eso en volver). Si tras los 3 sigue
-  fallando y el preflight lo vio `connected` → marcá el tier **`deferred`** (no `skipped`) y seguí.
-  **Ningún tier debe abortar el pipeline.**
+Clasificación de tier y política de retry MCP: seguí `.claude/skills/_shared/mcp-retry-policy.md`.
 
 ## Pasos
 
@@ -95,7 +78,7 @@ nueva (reintentando ese tier y los downstream). `skipped` es un descarte definit
    → `mark refresh bitacora regenerated`.
 6. **todos** — `/todos` materializa los accionables nuevos detectados en la bitácora y el `raw/` de
    hoy. Idempotente: dedupea contra los TODOs existentes y contra Jira. → `mark refresh todos done "<N nuevos>"`.
-7. **compactar** — `/compactar diario`: actualiza `## Interacciones` con 1-1s del calendario de hoy y
+7. **compactar** — `/compactar-diario`: actualiza `## Interacciones` con 1-1s del calendario de hoy y
    stagea candidatos nuevos en `candidatos-gold/`. El sync de Jira corre vía MCP de Atlassian
    best-effort (aplicá la política de retry MCP; si no está → `skipped` parcial, no abortes).
    → `mark refresh compactar done|skipped`.

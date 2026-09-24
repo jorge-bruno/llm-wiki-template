@@ -49,10 +49,10 @@ forma recomendada de hacer el template tuyo. El resto de este README es el detal
    `/capturar-calendar`, `/capturar-github` (best-effort) → todo a `raw/`.
 2. **Síntesis** — `/bitacora` arma la nota del día agrupada por proyecto.
 3. **TODOs** — `/todos` materializa los pendientes detectados y groomea el board.
-4. **Compactar** — `/compactar diario` actualiza Interacciones de personas + sync de Jira.
+4. **Compactar** — `/compactar-diario` actualiza Interacciones de personas + sync de Jira.
 5. **Backup** — `/backup` commitea y pushea (esto es lo que **preserva los resúmenes de Granola**).
 
-Intradía: `/refresh` re-corre una versión liviana tras cada meeting y por hora.
+Intradía: `/refresh` re-corre una versión liviana tras cada meeting y cada 2 horas.
 Semanal/mensual: `/compactar semanal|mensual` hace el rollup y promueve hechos durables al wiki.
 
 Hacé preguntas en lenguaje natural: Claude lee `wiki/index.md`, sigue los wikilinks y te responde
@@ -122,7 +122,7 @@ zsh .claude/launchd/install.sh
 `install.sh` resuelve solo la ruta del vault y el binario de `claude`, renderiza los plists y los
 carga. Instala:
 - **daily** — `/pipeline-diario` a la mañana.
-- **refresh** — `/refresh` por hora (L-V) + trigger event-driven tras cada meeting (watcher de Granola).
+- **refresh** — `/refresh` cada 2 horas (L-V) + trigger event-driven tras cada meeting (watcher de Granola).
 - **weekly / monthly** — `/compactar semanal|mensual`.
 
 Re-ejecutá `install.sh` tras editar cualquier `.plist`.
@@ -149,7 +149,8 @@ Re-ejecutá `install.sh` tras editar cualquier `.plist`.
 | `/capturar-github` | PRs recientes (`gh`) → `raw/github/`. |
 | `/ingest <fuente>` | Convierte archivo/URL a markdown (markitdown + `gog`). |
 | `/bitacora` | Síntesis diaria por proyecto (silver). |
-| `/compactar diario\|semanal\|mensual` | Compactación temporal + promoción a wiki (gold). |
+| `/compactar-diario` | Promoción event-driven diaria: Interacciones, sync Jira, stage de candidatos-gold. |
+| `/compactar semanal\|mensual` | Compactación temporal + promoción a wiki (gold). |
 | `/todos` | Genera/groomea TODOs desde el WIP, dedup contra Jira; regenera `kanban.html`. |
 | `/daily` | Status del standup → DM de Slack. |
 | `/health-check` | Diagnóstico del estado del vault. |

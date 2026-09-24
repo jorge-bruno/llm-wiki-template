@@ -72,17 +72,15 @@ disponible, informá y seguí sin abortar el pipeline.
 
 ## Notas
 
-- **Degradación con gracia (Tier 2)**: si el MCP de Granola no responde o el token está caído, no
-  escribas nada y reportá el estado distinguiendo los dos casos (el preflight trae el health en
-  `checks.mcp.servers.granola`): conector `connected: false` → `skipped` (falta auth, no se arregla
-  headless); conector sano que esta corrida no pudo usar (schema que no carga, socket error) →
-  **`deferred`**, que el wrapper reintenta en sesión nueva. Nunca abortes el pipeline. Ante 500 / socket
-  error / stream idle / "overloaded", reintentá hasta 3× con backoff `5s → 15s → 30s` antes de marcarlo.
+- **Degradación con gracia (Tier 2)**: si el MCP de Granola no responde o el token está caído, no escribas
+  nada. Clasificación de tier y política de retry MCP: seguí
+  `.claude/skills/_shared/mcp-retry-policy.md` (health del conector en `checks.mcp.servers.granola`).
+  Nunca abortes el pipeline.
 - **Trigger event-driven**: un LaunchAgent (`com.secondbrain.granola-transcript`, con WatchPaths sobre
   el store local de Granola) marca `.postmeeting-pending` en cada actividad nueva (señal de meeting
   nuevo/activo). El poller `com.secondbrain.postmeeting` espera el settle (~5 min de idle) y dispara
   `/refresh`, que corre esta skill. El summary del server puede tardar unos minutos en generarse: si el
-  primer disparo lo agarra vacío/parcial, el próximo slot horario lo re-captura (paso 2, compará y
+  primer disparo lo agarra vacío/parcial, el próximo slot de refresh lo re-captura (paso 2, compará y
   actualizá).
 - **Privacidad**: los resúmenes de entrevistas o conversaciones sensibles pueden traer PII. Se
   capturan igual (repo privado); no expongas nada fuera del vault ni pegues secretos que aparezcan —

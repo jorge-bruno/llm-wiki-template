@@ -28,15 +28,7 @@ Corre todo el flujo del día. Diseñado para correr **headless** (lanzado por la
    - **Recién con el schema cargado**, hacé **una** llamada barata de prueba por MCP (Granola →
      `get_account_info`; Calendar → `list_calendars`; Atlassian → `atlassianUserInfo`; Slack → la primera
      búsqueda de la captura ya es el probe).
-   - **Cómo clasificar el resultado** (regla determinística — no lo decidas a ojo):
-     | Preflight | ToolSearch / llamada | Estado del tier |
-     |---|---|---|
-     | `connected: true` | anda | corré el tier |
-     | `connected: true` | el `select:` NO trae el schema | **`deferred`** — conector sano que no quedó enumerado en esta sesión; el wrapper relanza una sesión nueva |
-     | `connected: true` | socket error / sin respuesta | reintentá (política de retry) y si no → **`deferred`** |
-     | `connected: false` | — | `skipped` (falta OAuth, no se arregla headless; un intento de `authenticate` y si devuelve URL → `skipped`) |
-     Pasa seguido que los 3 conectores de claude.ai (Slack/Calendar/Atlassian) no se enumeren juntos
-     mientras Granola sí: eso es enumeración fallida de la sesión, **no** "MCP no disponible".
+   - **Clasificación de tier y política de retry MCP**: seguí `.claude/skills/_shared/mcp-retry-policy.md`.
 
 3. **Iniciá el checkpoint** y fijate qué saltear por resume:
    ```bash
@@ -47,13 +39,7 @@ Corre todo el flujo del día. Diseñado para correr **headless** (lanzado por la
 
 ## Política de retry (aplicar en cada tier de red/MCP)
 
-- **Comandos shell con red** (`git push`, extractores): envolvelos con
-  `.claude/scripts/retry.sh --attempts 3 --base 2 --label "<qué> " -- <cmd...>` (backoff exponencial
-  + jitter ante exit ≠ 0; cubre 500s, socket errors y timeouts propagados como fallo).
-- **Llamadas MCP**: ante **500 / socket error / stream idle timeout / "overloaded"**, reintentá hasta
-  3 veces con backoff `5s → 15s → 30s` (el backoff de 1-2-4s no alcanzaba: cuando el proxy se cae tarda
-  más que eso en volver); si tras los 3 sigue fallando y el preflight lo vio `connected` → **`deferred`**
-  (no `skipped`) y seguí.
+Clasificación de tier y política de retry MCP: seguí `.claude/skills/_shared/mcp-retry-policy.md`.
 
 ## Orden de ejecución
 
@@ -87,7 +73,7 @@ tier y los downstream). `skipped` es un descarte definitivo de la corrida.
 
 ### Cierre
 7. **todos** — `/todos` materializa los pendientes detectados como notas. → `mark pipeline-diario todos done "<N>"`.
-8. **compactar** — `/compactar diario` promueve a gold lo event-driven (Interacciones + Jira sync vía
+8. **compactar** — `/compactar-diario` promueve a gold lo event-driven (Interacciones + Jira sync vía
    MCP de Atlassian) y stagea candidatos. **Best-effort**: aplicá retry MCP; si falla, `skipped` y
    seguí a backup. No debe abortar. → `mark pipeline-diario compactar done|skipped`.
 9. **backup** — `/backup` commit + push (el push va envuelto en `retry.sh`). → `mark pipeline-diario backup done`.

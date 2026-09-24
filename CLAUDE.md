@@ -139,10 +139,10 @@ Genera `bitacora/YYYY-MM-DD.md` sintetizando las capturas de `raw/` del día:
   registró el mismo entregable → omitir; si hay trabajo incremental → describir solo el delta.
 - **Extrae TODOs** como tareas `- [ ] … #todo` con properties (`proyecto::`, `origen::`, `due::`).
 
-## Compactación — `/compactar diario|semanal|mensual`
+## Compactación — `/compactar-diario` · `/compactar semanal|mensual`
 
 *Hierarchical temporal summarization* + promoción event-driven a gold:
-- **Diario** (corre en el pipeline): actualiza `## Interacciones` de personas (1-1s + Slack) y sync
+- **Diario** (`/compactar-diario`, skill aparte y liviana; corre en el pipeline): actualiza `## Interacciones` de personas (1-1s + Slack) y sync
   de estado Jira en `wiki/proyectos/` (AUTO, idempotente). Stagea en `candidatos-gold/` lo que
   requiere juicio: decisiones nuevas, páginas nuevas (regla de 2-3), edits de conocimiento durable.
 - **Semanal**: lee `bitacora/` de la semana ISO → `resumenes/semanal/YYYY-Www.md` (logros,
@@ -177,7 +177,7 @@ El título del archivo es la acción (verbo primero, ej. `revisar-propuesta-sqlf
 - `/pipeline-diario` — corre todo el loop de punta a punta (captura → bitácora → TODOs → compactar
   diario → backup). Pensado para correr headless; ver `README.md` para el cron opcional (launchd).
 - `/refresh` — mini-pipeline intradía (re-captura Granola/Claude/Slack/GitHub, regenera bitácora +
-  TODOs, compactar diario, backup). Más liviano; sin Calendar. Corre por hora y tras cada meeting.
+  TODOs, compactar diario, backup). Más liviano; sin Calendar. Corre cada 2h y tras cada meeting.
 - `/daily` — arma el status del standup y te lo manda por DM de Slack.
 - `/health-check` — diagnóstico rápido del estado del vault (crons, última corrida, pendientes).
 - `/limpiar-todos` — borra los TODOs terminales viejos (recuperables por git).

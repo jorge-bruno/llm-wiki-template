@@ -34,6 +34,18 @@ for i in 1 2 3 4; do
   sleep 30
 done
 
+# Pre-sesión determinista (optimización de tokens): mismo bloque que run-refresh.sh — ver ahí el
+# porqué de que solo GitHub esté wireado y Claude no.
+python3 .claude/scripts/pipeline_checkpoint.py start pipeline-diario >/dev/null 2>&1
+GH_PRESESION_OUT=$(python3 .claude/scripts/extract_github_prs.py --markdown auto)
+GH_PRESESION_RC=$?
+if [ "$GH_PRESESION_RC" -eq 0 ] && ! echo "$GH_PRESESION_OUT" | grep -q '"error"'; then
+  python3 .claude/scripts/pipeline_checkpoint.py mark pipeline-diario github regenerated "pre-sesión (extractor determinista)" >/dev/null 2>&1
+  echo "$(date '+%F %T') pipeline-diario: github pre-sesión OK, tier marcado"
+else
+  echo "$(date '+%F %T') pipeline-diario: github pre-sesión no marcó tier (rc=$GH_PRESESION_RC), la sesión lo captura de fallback"
+fi
+
 echo "$(date '+%F %T') corriendo /pipeline-diario"
 # Reinvoke acotado: si la sesión muere a mitad o termina sin cerrar el checkpoint, reintentamos;
 # el checkpoint persiste entre invocaciones → la 2da corrida resume desde el último tier completado.
